@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<!--
+  Stereo 4D polytopes - a single self-contained page (no libraries, no build step, no network access).
+
+  WHAT IT DOES
+    Draws a 4D wireframe polytope (tesseract or 5-cell) that can be rotated in all six 4D rotation planes,
+    as two stereo pairs (left/right eye images) so that depth can be seen with the naked eye, plus an optional
+    "wiggle" (the camera oscillates) as a second depth cue.
+
+  FILE LAYOUT
+    1. style block  - layout and colours (light/dark theme follows the OS setting).
+    2. body         - one canvas (everything is drawn on it) + the control panel.
+    3. script block - one IIFE, sections numbered 1..10 below. Search for "SECTION n".
+
+  FOR READERS (HUMAN OR AI) - THE ONE-PARAGRAPH SUMMARY
+    A shape is plain data: 4D vertices, edges, and "cells" (lists of faces). Every frame:
+      (a) rotate the vertices with the 4x4 orientation matrix R,
+      (b) project 4D -> 3D (perspective along W), then 3D -> 2D (perspective along Z), once per eye,
+      (c) draw highlighted cell faces, then the edges, then the global axes.
+    Two projection "variants" are drawn at the same time (top pair and bottom pair). They differ in WHERE the eye
+    separation (stereo) and WHERE the camera oscillation (wiggle) are applied:
+      variant 1: stereo = 3D eye shift,  wiggle = 4D camera shift
+      variant 2: stereo = 4D eye shift,  wiggle = 3D camera shift
+    See README.md for the user-facing explanation.
+
+  CONVENTIONS
+    Axes are X (right), Y (UP on screen), Z (toward the viewer), W (toward the 4D observer, i.e. "near" in 4D).
+    Colours: X red, Y green, Z blue, W gray (and an orange 5th colour used only for the 5-cell's fifth cell).
+    Screen y grows downward, so the projection subtracts Y (see pj() in SECTION 6).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stereo 4D polytopes: tesseract and 5-cell</title>
+<style>
+/* Theme colours as CSS variables. Dark values apply automatically when the OS prefers dark;
+   <html data-theme="light|dark"> can force a theme (the canvas code reads the same variables). */
+:root {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  --bg: #f4f1ea;
+  --text: #2a2723;
+  --muted: #7a746b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #16181d; --text: #ecebe8; --muted: #8c8f96; }
+}
+:root[data-theme="dark"] { --bg: #16181d; --text: #ecebe8; --muted: #8c8f96; }
+
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  display: flex; flex-direction: column; align-items: center;
+  overflow-x: hidden; overflow-y: auto;
+  user-select: none; -webkit-user-select: none;
+}
+.wrap { margin: auto 0; width: 100%; display: flex; flex-direction: column; align-items: center; padding: 12px 0; }
+
+/* The drawing area. touch-action:none lets us handle touch gestures ourselves (rotate / pinch-zoom). */
+.stage { position: relative; width: 100%; height: min(68vh, 560px); cursor: grab; touch-action: none; }
+.stage.drag { cursor: grabbing; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+.hint { margin-top: 6px; font-size: 13px; color: var(--muted); text-align: center; padding: 0 12px; line-height: 1.5; }
+
+/* Control panel: two columns (one on narrow screens). .wide spans both columns, .grp is a group heading. */
+.controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; align-items: center; margin-top: 12px; width: min(94vw, 600px); }
+@media (max-width: 440px) { .controls { grid-template-columns: 1fr; } }
+.controls > button { margin-top: 0; grid-column: 1 / -1; justify-self: center; }
+.wide { grid-column: 1 / -1; }
+.grp { grid-column: 1 / -1; margin-top: 8px; padding-bottom: 4px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid rgba(128,128,128,.35); }
+.row { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); }
+.row input { width: 100%; accent-color: var(--text); margin: 0; }
+.chk { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.chk input { accent-color: var(--text); margin: 0; }
+button {
+  margin-top: 16px; padding: 8px 18px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--muted); background: transparent; color: var(--text); font-size: 14px;
+}
+/* ".seg" = a row of small buttons. A button with class "on" is selected (radio group) or switched on (toggle). */
+.seg { display: flex; flex-wrap: wrap; gap: 8px; }
+.seg button { margin-top: 0; padding: 6px 14px; font-size: 13px; }
+.seg button.on { background: var(--text); color: var(--bg); border-color: var(--text); }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: baseline; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stage" id="stage"><canvas id="cv"></canvas></div>
+
+  <div class="hint">
+    LMB drag: rotate (XZ, YZ) &middot; RMB drag: rotate through 4D (XW, YW)<br>
+    RMB + mouse wheel: rotate ZW &middot; LMB + RMB together, drag left/right: rotate XY<br>
+    Wheel or pinch: zoom &middot; Coloured axes in the lower-left corner of each image: fixed global axes
+    (+X right, +Y up, +Z toward the viewer, +W toward the 4D observer)
+  </div>
+
+  <div class="controls">
+    <!-- Figure selector (SECTION 9 builds the rest of the panel for the chosen figure) -->
+    <div class="seg wide" id="segShape" style="justify-self:center">
+      <button class="on" data-v="tesseract">Tesseract</button><button data-v="simplex">Simplex</button>
+    </div>
+    <button id="reset">Reset orientation</button>
+
+    <div class="grp">Edges &amp; cell highlight</div>
+    <div class="row wide">Edges:
+      <div class="seg" id="segEdge"><button class="on" data-v="grad">W gradient</button><button data-v="mono">Plain</button></div>
+    </div>
+    <!-- Cell on/off toggles are generated by buildCellUI() because they depend on the figure.
+         display:contents makes the generated rows take part in the grid above. -->
+    <div id="cellBox" style="display:contents"></div>
+    <label class="row wide">Fill opacity: <span id="fav"></span>
+      <input type="range" id="fa" min="5" max="90" step="1" value="35">
+    </label>
+
+    <div class="grp">Wiggle</div>
+    <label class="chk wide"><input type="checkbox" id="won" checked> <span>Wiggle in 4D / 3D (variant 1 / variant 2)</span></label>
+    <div class="row">Wiggle direction:
+      <div class="seg" id="segAxis"><button data-v="y">Vertical</button><button class="on" data-v="x">Horizontal</button></div>
+    </div>
+    <div class="row">Motion:
+      <div class="seg" id="segMode"><button class="on" data-v="smooth">Smooth</button><button data-v="step">Step</button></div>
+    </div>
+    <label class="row">Amplitude: <span id="wav"></span>
+      <input type="range" id="wa" min="0" max="50" step="1" value="15">
+    </label>
+    <label class="row">Frequency: <span id="wfv"></span>
+      <input type="range" id="wf" min="0.2" max="6" step="0.1" value="3">
+    </label>
+
+    <div class="grp">Perspective</div>
+    <label class="row">3D field of view: <span id="fovv"></span>
+      <input type="range" id="fov" min="5" max="45" step="1" value="20">
+    </label>
+    <label class="row">4D field of view (along W): <span id="fov4v"></span>
+      <input type="range" id="fov4" min="5" max="45" step="1" value="24">
+    </label>
+
+    <div class="grp">Stereo pair</div>
+    <div class="row wide">Viewing method:
+      <div class="seg" id="segView"><button class="on" data-v="par">Parallel</button><button data-v="cross">Cross-eyed</button></div>
+    </div>
+    <label class="row">Image spacing: <span id="distv"></span>
+      <input type="range" id="dist" min="0" max="700" step="5" value="200">
+    </label>
+    <label class="row">Pair spacing: <span id="vdistv"></span>
+      <input type="range" id="vdist" min="0" max="600" step="5" value="200">
+    </label>
+    <label class="row">Stereo strength (3D / 4D): <span id="sterv"></span>
+      <input type="range" id="ster" min="0" max="50" step="1" value="20">
+    </label>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ============================================================================================
+  // SECTION 1. DOM references and small helpers
+  // ============================================================================================
+  var $ = function (id) { return document.getElementById(id); };
+  var stage = $('stage'), cv = $('cv'), ctx = cv.getContext('2d');
+  // Slider inputs. Names are short because they are used everywhere:
+  var dist = $('dist');     // horizontal distance between the left and right image of a pair (px)
+  var vdist = $('vdist');   // vertical distance between the top pair and the bottom pair (px)
+  var ster = $('ster');     // stereo strength = half the separation of the two virtual eyes (figure units)
+  var fov = $('fov');       // 3D field of view in degrees  -> perspective strength of the 3D -> 2D step
+  var fov4 = $('fov4');     // 4D field of view in degrees  -> perspective strength of the 4D -> 3D step
+  var wa = $('wa');         // wiggle amplitude (figure units)
+  var wf = $('wf');         // wiggle frequency (Hz)
+  var fa = $('fa');         // opacity of the highlighted cells, percent
+
+  // ============================================================================================
+  // SECTION 2. Colours
+  // ============================================================================================
+  // Axis colours as "R,G,B" strings: X red, Y green, Z blue, W gray.
+  // Used for the global-axes gizmo and for the tesseract's cells (a cell takes the colour of its axis).
+  var AXC = ['229,57,53', '46,168,79', '47,109,240', '128,128,128'];
+  // The 5-cell has five cells, so it needs a fifth colour (orange).
+  var CELL5C = AXC.concat(['240,150,30']);
+
+  // ============================================================================================
+  // SECTION 3. Shapes (pure data - the renderer knows nothing else about a figure)
+  // ============================================================================================
+  // <shapes>
+  // A shape is a plain object:
+  //   id     - string key
+  //   V      - 4D vertices, each [x, y, z, w]; the figure is centred at the origin, radius roughly 100..200
+  //   E      - edges, each a pair of vertex indices [i, j]
+  //   cells  - one entry per 3D cell; an entry is a list of that cell's faces; a face is a list of vertex
+  //            indices in cyclic order (4 for squares, 3 for triangles, any length works)
+  //   colors - highlight colour ("R,G,B" string) of each cell
+  //   on     - highlight flag of each cell (state of the toggle buttons; kept per shape)
+  // To add a polytope: write a makeXxx() that returns such an object, register it in SHAPES (below),
+  // add a button with data-v="<id>" to #segShape, and (if it needs a special cell panel) extend buildCellUI().
+
+  // Tesseract cell: fix axis `a` (0..3) at its minus or plus side; the remaining 3 axes span a cube
+  // with 6 square faces. Tesseract vertex index bit k tells the sign of axis k (0 = -100, 1 = +100).
+  function buildCell(a, plus) {
+    var others = [0, 1, 2, 3].filter(function (x) { return x !== a; });
+    var base = plus ? (1 << a) : 0, out = [];
+    others.forEach(function (bx) {                       // choose the axis that is fixed for this face ...
+      var rest = others.filter(function (x) { return x !== bx; }), c = rest[0], d = rest[1];
+      [0, 1].forEach(function (sb) {                     // ... and its sign
+        var o = base | (sb ? (1 << bx) : 0);
+        out.push([o, o | (1 << c), o | (1 << c) | (1 << d), o | (1 << d)]);   // the 4 corners in cyclic order
+      });
+    });
+    return out;
+  }
+
+  // Tesseract (8-cell): 16 vertices (+-100)^4, 32 edges, 24 square faces, 8 cubic cells.
+  // Cell order: X-, X+, Y-, Y+, Z-, Z+, W-, W+  (index = 2 * axis + (plus ? 1 : 0)).
+  function makeTesseract() {
+    var V = [], E = [], cells = [], colors = [], on = [], i, b, a;
+    for (i = 0; i < 16; i++) {
+      V.push([(i & 1 ? 1 : -1) * 100, (i & 2 ? 1 : -1) * 100, (i & 4 ? 1 : -1) * 100, (i & 8 ? 1 : -1) * 100]);
+    }
+    // two vertices are joined by an edge when their indices differ in exactly one bit
+    for (i = 0; i < 16; i++) for (b = 1; b < 16; b <<= 1) if (!(i & b)) E.push([i, i | b]);
+    for (a = 0; a < 4; a++) {
+      cells.push(buildCell(a, false)); cells.push(buildCell(a, true));
+      colors.push(AXC[a], AXC[a]);
+      on.push(false, false);
+    }
+    on[6] = true;   // the W- cell (the "inner" cube) is highlighted by default
+    return { id: 'tesseract', V: V, E: E, cells: cells, colors: colors, on: on };
+  }
+
+  // Simplex (5-cell): 5 vertices, 10 edges, 10 triangular faces, 5 tetrahedral cells; all edges are equal.
+  // Vertices 1-4 form a regular tetrahedron in the hyperplane w = -100/sqrt(5); vertex 5 is the apex on +W.
+  // Cell k (k = 1..5) consists of all vertices EXCEPT vertex k (so cell 5 is the "base" tetrahedron).
+  function makeSimplex() {
+    var q = 100 / Math.sqrt(5);
+    var V = [[100, 100, 100, -q], [100, -100, -100, -q], [-100, 100, -100, -q], [-100, -100, 100, -q], [0, 0, 0, 4 * q]];
+    var E = [], cells = [], colors = [], on = [], i, j, m;
+    for (i = 0; i < 5; i++) for (j = i + 1; j < 5; j++) E.push([i, j]);   // every pair of vertices is an edge
+    for (m = 0; m < 5; m++) {
+      var vs = [0, 1, 2, 3, 4].filter(function (x) { return x !== m; }), faces = [];
+      // the 4 triangles of the tetrahedron = every way of dropping one of its 4 vertices
+      for (i = 0; i < 4; i++) faces.push(vs.filter(function (_, idx) { return idx !== i; }));
+      cells.push(faces); colors.push(CELL5C[m]); on.push(m === 0);
+    }
+    return { id: 'simplex', V: V, E: E, cells: cells, colors: colors, on: on };
+  }
+  // </shapes>
+
+  var SHAPES = { tesseract: makeTesseract(), simplex: makeSimplex() };
+
+  // ============================================================================================
+  // SECTION 4. State
+  // ============================================================================================
+  var shape = SHAPES.tesseract, V = shape.V, E = shape.E;   // the figure currently drawn
+  var wiggleOn = true;        // wiggle (camera oscillation) enabled
+  var waxis = 'x';            // direction of the oscillation: 'x' horizontal, 'y' vertical
+  var wmode = 'smooth';       // 'smooth' (sine) or 'step' (square wave)
+  var phase = 0;              // current phase of the oscillation, radians
+  var lastT = performance.now();   // time of the previous frame, for the phase integration
+  var emono = false;          // edges in a single colour instead of the W gradient
+  var cross = false;          // false = parallel viewing, true = cross-eyed viewing (swaps the two cameras)
+  var K0 = 0.4, k = K0;       // zoom: screen pixels per figure unit
+
+  function setScale(v) { k = Math.max(0.3, Math.min(3.5, v)); draw(); }
+
+  // ============================================================================================
+  // SECTION 5. 4D rotation
+  // ============================================================================================
+  // R is the 4x4 orientation of the figure: rotated point = R * original point.
+  // Dragging applies a small extra rotation `delta` on the left: R <- delta * R, i.e. rotations are expressed
+  // in the FIXED screen frame (X right, Y up, Z toward the viewer, W toward the 4D observer), not in the
+  // figure's own frame. That is what makes dragging feel the same whatever the current orientation is.
+  function ident() { return [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]; }
+  function mul(a, b) {
+    var r = [[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
+    for (var i = 0; i < 4; i++) for (var j = 0; j < 4; j++) for (var q = 0; q < 4; q++) r[i][j] += a[i][q] * b[q][j];
+    return r;
+  }
+  // Rotation by `deg` degrees in the plane of axes i and j (0 = X, 1 = Y, 2 = Z, 3 = W).
+  // A 4D rotation happens in a PLANE, not around an axis; there are 6 planes: XY, XZ, XW, YZ, YW, ZW.
+  function rot(i, j, deg) {
+    var m = ident(), t = deg * Math.PI / 180, c = Math.cos(t), s = Math.sin(t);
+    m[i][i] = c; m[j][j] = c; m[i][j] = s; m[j][i] = -s;
+    return m;
+  }
+  var R = ident();
+  // Gram-Schmidt re-orthonormalisation of R's rows. Thousands of tiny rotations accumulate floating-point error;
+  // without this the figure would slowly shear or shrink.
+  function ortho() {
+    for (var i = 0; i < 4; i++) {
+      var j, q, d, n = 0;
+      for (j = 0; j < i; j++) {                                   // remove components along earlier rows
+        d = 0;
+        for (q = 0; q < 4; q++) d += R[i][q] * R[j][q];
+        for (q = 0; q < 4; q++) R[i][q] -= d * R[j][q];
+      }
+      for (q = 0; q < 4; q++) n += R[i][q] * R[i][q];
+      n = Math.sqrt(n);
+      for (q = 0; q < 4; q++) R[i][q] /= n;                       // normalise
+    }
+  }
+  function apply(delta) { R = mul(delta, R); ortho(); draw(); }
+
+  // ============================================================================================
+  // SECTION 6. Rendering
+  // ============================================================================================
+  var queued = false;
+  // Request a repaint (several requests in one frame are merged into one).
+  function draw() { if (!queued) { queued = true; requestAnimationFrame(paint); } }
+
+  // Show the current slider values next to the sliders.
+  function labels() {
+    $('distv').textContent = dist.value + ' px';
+    $('sterv').textContent = ster.value;
+    $('fovv').textContent = fov.value + '\u00B0';
+    $('fov4v').textContent = fov4.value + '\u00B0';
+    $('wfv').textContent = (+wf.value).toFixed(1) + ' Hz';
+    $('wav').textContent = wa.value;
+    $('vdistv').textContent = vdist.value + ' px';
+    $('fav').textContent = fa.value + '%';
+  }
+
+  // Draw one complete frame.
+  function paint() {
+    queued = false;
+
+    // --- canvas setup (sharp on high-DPI screens) ---
+    var dpr = window.devicePixelRatio || 1;
+    var W = stage.clientWidth, H = stage.clientHeight;
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
+      cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    var color = getComputedStyle(document.documentElement).getPropertyValue('--text') || '#000';
+    ctx.strokeStyle = color.trim(); ctx.lineWidth = 2; ctx.lineCap = 'round';
+
+    // --- perspective distances ---
+    // The camera sits at distance d from the origin; a field of view `fov` that just frames a half-size of 100
+    // gives d = 100 / tan(fov / 2). Smaller field of view = camera farther away = weaker perspective.
+    var d3 = 100 / Math.tan(+fov.value * Math.PI / 360);    // 3D -> 2D camera distance (along Z)
+    var d4 = 100 / Math.tan(+fov4.value * Math.PI / 360);   // 4D -> 3D camera distance (along W)
+    var stereo = +ster.value, imageGap = +dist.value;
+
+    // --- edge colour by W (depth along the 4th dimension): blue = far from the 4D observer, red = near ---
+    var th = document.documentElement.getAttribute('data-theme');
+    var dark = th ? th === 'dark' : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    var lightness = dark ? 62 : 45;
+    function col(w) {
+      var t = Math.max(0, Math.min(1, (w + 150) / 300));        // w = -150 -> 0 (blue), w = +150 -> 1 (red)
+      return 'hsl(' + Math.round(240 - 240 * t) + ',90%,' + lightness + '%)';
+    }
+
+    // --- wiggle: one shared camera offset (wx, wy) for both eyes, oscillating in time ---
+    var wob = 0;
+    if (wiggleOn) {
+      var now = performance.now();
+      phase += 2 * Math.PI * (+wf.value) * Math.min(now - lastT, 100) / 1000;   // cap dt so a stalled tab does not jump
+      lastT = now;
+      var sn = Math.sin(phase);
+      wob = (wmode === 'step' ? (sn >= 0 ? 1 : -1) : sn) * (+wa.value);
+    }
+    var wx = (wiggleOn && waxis === 'x') ? wob : 0;
+    var wy = (wiggleOn && waxis === 'y') ? wob : 0;
+
+    // --- rotate all vertices once per frame: P[i] = R * V[i]  (still 4D) ---
+    var P = V.map(function (v) {
+      var x = 0, y = 0, z = 0, w = 0;
+      for (var j = 0; j < 4; j++) {
+        x += R[0][j] * v[j]; y += R[1][j] * v[j]; z += R[2][j] * v[j]; w += R[3][j] * v[j];
+      }
+      return [x, y, z, w];
+    });
+
+    // Draw one stereo pair (left image + right image) centred vertically at screen y = cy.
+    //   stereoIn4D = false -> VARIANT 1: eye separation in the 3D -> 2D step, wiggle in the 4D -> 3D step
+    //   stereoIn4D = true  -> VARIANT 2: eye separation in the 4D -> 3D step, wiggle in the 3D -> 2D step
+    function drawRow(cy, stereoIn4D) {
+      [-1, 1].forEach(function (eye) {                  // eye = -1: left image, +1: right image
+        var cx = W / 2 + eye * imageGap / 2;            // centre of this image on the screen
+
+        // Sideways camera offsets of this image. a4* belongs to the 4D -> 3D projection, a3* to the 3D -> 2D one.
+        // `es` is this eye's stereo offset; cross-eyed viewing simply swaps which eye's view goes to which side.
+        var a4x, a4y, a3x, a3y, es = (cross ? -eye : eye) * stereo;
+        if (stereoIn4D) { a4x = es; a4y = 0; a3x = wx; a3y = wy; }
+        else            { a4x = wx; a4y = wy; a3x = es; a3y = 0; }
+
+        // Project a 4D point p = [x, y, z, w] to screen coordinates for this image. Two chained perspective steps:
+        //   step 1 (4D -> 3D): camera at w = d4, shifted sideways by (a4x, a4y); scale factor f4 grows as w -> d4
+        //   step 2 (3D -> 2D): camera at z = d3, shifted sideways by (a3x, a3y); scale factor f3 grows as z -> d3
+        // A point is scaled about the camera's sideways position, so offsets only matter for points that are
+        // off the camera plane (w != 0 resp. z != 0) - this is the source of the parallax.
+        // Math.max(.., 20) keeps the divisor positive for points that get behind the camera.
+        // Screen y points down, hence cy - ...
+        function pj(p) {
+          var f4 = d4 / Math.max(d4 - p[3], 20);
+          var X = a4x + (p[0] - a4x) * f4, Y = a4y + (p[1] - a4y) * f4, Z = p[2] * f4;
+          var f3 = d3 / Math.max(d3 - Z, 20);
+          return [cx + k * (a3x + (X - a3x) * f3), cy - k * (a3y + (Y - a3y) * f3)];
+        }
+        var Q = P.map(pj);                              // screen position of every vertex in this image
+
+        // (1) highlighted cells: semi-transparent filled faces, drawn first so the edges stay on top
+        shape.cells.forEach(function (faces, ci) {
+          if (!shape.on[ci]) return;
+          ctx.fillStyle = 'rgba(' + shape.colors[ci] + ',' + (+fa.value / 100) + ')';
+          faces.forEach(function (f) {
+            ctx.beginPath();
+            ctx.moveTo(Q[f[0]][0], Q[f[0]][1]);
+            for (var q = 1; q < f.length; q++) ctx.lineTo(Q[f[q]][0], Q[f[q]][1]);
+            ctx.closePath();
+            ctx.fill();
+          });
+        });
+
+        // (2) edges. In gradient mode each edge fades from the colour of one end's W to the other's.
+        E.forEach(function (e) {
+          var a = Q[e[0]], c = Q[e[1]], wA = P[e[0]][3], wC = P[e[1]][3];
+          ctx.beginPath();
+          ctx.moveTo(a[0], a[1]);
+          ctx.lineTo(c[0], c[1]);
+          if (emono) {
+            ctx.strokeStyle = color.trim();
+          } else if (Math.hypot(c[0] - a[0], c[1] - a[1]) < 0.5) {
+            ctx.strokeStyle = col((wA + wC) / 2);       // degenerate (point-like) edge: a gradient would be undefined
+          } else {
+            var g = ctx.createLinearGradient(a[0], a[1], c[0], c[1]);
+            g.addColorStop(0, col(wA));
+            g.addColorStop(1, col(wC));
+            ctx.strokeStyle = g;
+          }
+          ctx.stroke();
+        });
+
+        // (3) global axes. They do NOT rotate with the figure: they show the fixed directions of the screen frame.
+        // They live in the same 4D space as the figure - a small frame erected at GO (lower-left of the figure) and
+        // projected through the very same pj() - so the field-of-view sliders and the zoom act on them exactly as on
+        // the figure. GO lies in the plane z = 0, w = 0 on purpose: there the 3D camera offset (a3x) only moves
+        // points with z != 0 and the 4D camera offset (a4x) only points with w != 0. Consequently:
+        //   - the Z axis reacts only to the 3D offset (stereo in variant 1, wiggle in variant 2),
+        //   - the W axis reacts only to the 4D offset (wiggle in variant 1, stereo in variant 2),
+        //   - the X and Y axes and the origin never move.
+        var GO = [-190, -190, 0, 0], GL = 120;          // frame origin and axis length, in figure units
+        var o = pj(GO);
+        var FB = [[10, 0], [0, -10], [-11, 9], [11, 9]];   // label offsets used if an axis collapses to a point
+        var NUDGE = [0, 0, 7, -7];                      // Z and W both point "into the screen" and look collinear: move their labels apart
+        ctx.save();
+        ctx.lineWidth = 1.5;
+        ctx.font = '600 12px system-ui, sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        var wigAx = stereoIn4D ? 2 : 3;                 // the axis of the wiggling space: Z in variant 2, W in variant 1
+        [0, 1, 2, 3].forEach(function (ax) {
+          if (!wiggleOn && ax === wigAx) return;        // wiggle off: do not draw the axis (and label) that exists to show it
+          var tip = GO.slice(); tip[ax] += GL;
+          var t = pj(tip), cc = 'rgb(' + AXC[ax] + ')';
+          var axDx = t[0] - o[0], axDy = t[1] - o[1], len = Math.hypot(axDx, axDy);
+          ctx.strokeStyle = cc; ctx.fillStyle = cc;
+          ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(t[0], t[1]); ctx.stroke();
+          // label just beyond the tip, pushed sideways by NUDGE for Z / W
+          var ux = len >= 6 ? axDx / len : 0, uy = len >= 6 ? axDy / len : 0;
+          var lx = t[0] + (len >= 6 ? ux * 10 - uy * NUDGE[ax] : FB[ax][0]);
+          var ly = t[1] + (len >= 6 ? uy * 10 + ux * NUDGE[ax] : FB[ax][1]);
+          ctx.fillText('+' + 'XYZW'.charAt(ax), lx, ly);
+        });
+        ctx.restore();
+      });
+    }
+
+    // Two pairs: variant 1 on top, variant 2 below.
+    var pairGap = +vdist.value;
+    var cyTop = H / 2 - pairGap / 2, cyBottom = H / 2 + pairGap / 2;
+    drawRow(cyTop, false);
+    drawRow(cyBottom, true);
+
+    // Captions (the wiggle part is shown only while the wiggle is on).
+    var muted = (getComputedStyle(document.documentElement).getPropertyValue('--muted') || '#888').trim();
+    ctx.fillStyle = muted; ctx.font = '12px system-ui, sans-serif'; ctx.textBaseline = 'top';
+    ctx.fillText('Variant 1: 3D stereo' + (wiggleOn ? ', 4D wiggle' : ''), 10, Math.max(4, cyTop - k * 150 - 12));
+    ctx.fillText('Variant 2: 4D stereo' + (wiggleOn ? ', 3D wiggle' : ''), 10, Math.max(4, cyBottom - k * 150 - 12));
+  }
+
+  // Repaint when a slider moves, the window resizes, or the OS theme changes.
+  [dist, ster, fov, fov4, wf, wa, vdist, fa].forEach(function (el) {
+    el.addEventListener('input', function () { labels(); draw(); });
+  });
+  window.addEventListener('resize', draw);
+  if (window.ResizeObserver) new ResizeObserver(draw).observe(stage);
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', draw);
+  }
+
+  // ============================================================================================
+  // SECTION 7. Mouse / touch input
+  // ============================================================================================
+  // Mapping (drag distance in px -> degrees is 0.5 deg per px):
+  //   LMB drag            horizontal: XZ, vertical: YZ      (ordinary 3D rotation)
+  //   RMB drag            horizontal: XW, vertical: YW      (rotation "through" the 4th dimension)
+  //   RMB + wheel         ZW (10 degrees per wheel notch)
+  //   LMB + RMB drag      horizontal: XY                    (roll in the screen plane)
+  //   wheel / pinch       zoom
+  // Touch: one finger = the LMB behaviour, two fingers = pinch zoom (no 4D rotation on touch screens).
+
+  // The browser's context menu would pop up on every right-click drag: block it over the drawing area.
+  stage.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  var pts = {}, pinchD = 0;                             // active pointers by id; last distance between two pointers
+  function ids() { return Object.keys(pts); }
+  function pinchDist() {
+    var a = pts[ids()[0]], b = pts[ids()[1]];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+  stage.addEventListener('pointerdown', function (e) {
+    if (e.button > 2) return;                           // side mouse buttons are not used
+    stage.setPointerCapture(e.pointerId);               // keep receiving moves when the pointer leaves the canvas
+    pts[e.pointerId] = { x: e.clientX, y: e.clientY, w: e.button === 2 };
+    if (ids().length === 2) pinchD = pinchDist();
+    stage.classList.add('drag');
+  });
+  stage.addEventListener('pointermove', function (e) {
+    var p = pts[e.pointerId];
+    if (!p) return;
+    var dx = e.clientX - p.x, dy = e.clientY - p.y;
+    p.x = e.clientX; p.y = e.clientY;
+    if (ids().length === 1) {
+      // For a mouse, e.buttons is a live bit mask (1 = left, 2 = right), so the mode can change in the middle
+      // of a drag when the second button is pressed or released. Other pointer types count as "left".
+      var bt = e.pointerType === 'mouse' ? (e.buttons & 3) : 1;
+      if (bt === 3) apply(rot(0, 1, -dx * 0.5));                                         // LMB + RMB: XY
+      else if (bt === 2 || (!bt && p.w)) apply(mul(rot(3, 1, dy * 0.5), rot(0, 3, dx * 0.5)));   // RMB: YW and XW
+      else apply(mul(rot(2, 1, dy * 0.5), rot(0, 2, dx * 0.5)));                         // LMB: YZ and XZ
+    } else if (ids().length === 2) {
+      var d = pinchDist();
+      if (pinchD > 0) setScale(k * d / pinchD);
+      pinchD = d;
+    }
+  });
+  function end(e) {
+    delete pts[e.pointerId];
+    pinchD = 0;
+    if (!ids().length) stage.classList.remove('drag');
+  }
+  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointercancel', end);
+  stage.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    if (e.buttons & 2) apply(rot(2, 3, e.deltaY * 0.1));            // RMB + wheel: ZW plane
+    else setScale(k * Math.exp(-e.deltaY * 0.0015));                // plain wheel: zoom
+  }, { passive: false });
+
+  // ============================================================================================
+  // SECTION 8. Wiggle animation loop and the generic button groups
+  // ============================================================================================
+  // While the wiggle is on, repaint every frame (paint() advances the oscillation phase itself).
+  // When it is off, nothing animates and the page repaints only on demand (draw()).
+  var looping = false;
+  function loop() {
+    if (!wiggleOn) { looping = false; return; }
+    paint();
+    requestAnimationFrame(loop);
+  }
+  function startLoop() {
+    if (!looping) { looping = true; requestAnimationFrame(loop); }
+  }
+  $('won').addEventListener('change', function () {
+    wiggleOn = this.checked;
+    if (wiggleOn) { lastT = performance.now(); startLoop(); } else draw();
+  });
+
+  // A "radio" group of buttons: clicking one marks it "on" (and the others off) and calls cb(its data-v value).
+  function seg(id, cb) {
+    var box = $(id);
+    box.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      [].forEach.call(box.children, function (c) { c.classList.remove('on'); });
+      b.classList.add('on');
+      cb(b.getAttribute('data-v'));
+      draw();
+    });
+  }
+  seg('segAxis', function (v) { waxis = v; });
+  seg('segMode', function (v) { wmode = v; });
+  seg('segEdge', function (v) { emono = v === 'mono'; });
+  seg('segView', function (v) { cross = v === 'cross'; });
+
+  // ============================================================================================
+  // SECTION 9. Cell highlight panel (rebuilt for every figure)
+  // ============================================================================================
+  // Every button here is an independent on/off toggle bound to shape.on[cellIndex].
+  var cellBox = $('cellBox');
+  var AXN = ['X', 'Y', 'Z', 'W'], COLN = ['red', 'green', 'blue', 'gray'];
+  function dotHtml(c) { return '<i class="dot" style="background:rgb(' + c + ')"></i>'; }
+  // Make the buttons' "on" class reflect shape.on.
+  function syncCellUI() {
+    [].forEach.call(cellBox.querySelectorAll('button'), function (bt) {
+      bt.classList.toggle('on', !!shape.on[+bt.getAttribute('data-i')]);
+    });
+  }
+  function buildCellUI() {
+    var h = '', a, c;
+    if (shape.id === 'tesseract') {
+      // one row per axis with two toggles: the "-" cell and the "+" cell (both on = the whole opposite pair)
+      for (a = 0; a < 4; a++) {
+        h += '<div class="row"><span>' + dotHtml(AXC[a]) + 'Cell on axis ' + AXN[a] + ' \u00B7 ' + COLN[a] + '</span><div class="seg">' +
+             '<button data-i="' + (2 * a) + '">\u2212</button><button data-i="' + (2 * a + 1) + '">+</button></div></div>';
+      }
+    } else {
+      // 5-cell: one toggle per cell, numbered 1..5
+      h += '<div class="row wide"><span>Cells (cell k = all vertices except vertex k; vertex 5 is the apex, along +W):</span><div class="seg">';
+      for (c = 0; c < shape.cells.length; c++) h += '<button data-i="' + c + '">' + dotHtml(shape.colors[c]) + (c + 1) + '</button>';
+      h += '</div></div>';
+    }
+    cellBox.innerHTML = h;
+    syncCellUI();
+  }
+  cellBox.addEventListener('click', function (e) {      // one listener for all (re)generated buttons
+    var bt = e.target.closest('button');
+    if (!bt) return;
+    var ci = +bt.getAttribute('data-i');
+    shape.on[ci] = !shape.on[ci];
+    syncCellUI();
+    draw();
+  });
+
+  // ============================================================================================
+  // SECTION 10. Figure switch, reset, start-up
+  // ============================================================================================
+  // Switching figures keeps the orientation, zoom and all sliders; each figure remembers its own highlighted cells.
+  function setShape(id) { shape = SHAPES[id]; V = shape.V; E = shape.E; buildCellUI(); }
+  seg('segShape', setShape);
+
+  // Reset only the orientation (zoom and sliders stay).
+  $('reset').addEventListener('click', function () { R = ident(); draw(); });
+
+  labels(); buildCellUI(); draw(); startLoop();
+})();
+</script>
+</body>
+</html>
