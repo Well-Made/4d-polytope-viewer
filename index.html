@@ -3,7 +3,8 @@
   Stereo 4D polytopes - a single self-contained page (no libraries, no build step, no network access).
 
   WHAT IT DOES
-    Draws a 4D wireframe polytope (tesseract or 5-cell) that can be rotated in all six 4D rotation planes,
+    Draws a 4D wireframe polytope (tesseract, 5-cell, or an ordinary cube for comparison) that can be rotated
+    in all six 4D rotation planes,
     as two stereo pairs (left/right eye images) so that depth can be seen with the naked eye, plus an optional
     "wiggle" (the camera oscillates) as a second depth cue.
 
@@ -32,7 +33,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Stereo 4D polytopes: tesseract and 5-cell</title>
+<title>Interactive 4D Polytope Viewer: Stereo Tesseract &amp; 5-Cell</title>
+<meta name="description" content="Rotate a tesseract (hypercube), a 5-cell or a cube in four dimensions in your browser. Stereo pairs and wiggle show the depth. Free, open source.">
+<link rel="canonical" href="https://well-made.github.io/4d-polytope-viewer/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Interactive 4D Polytope Viewer: Stereo Tesseract &amp; 5-Cell">
+<meta property="og:description" content="Rotate a tesseract (hypercube), a 5-cell or a plain cube in four dimensions. Stereo pairs and a wiggle show the depth. Free and open source.">
+<meta property="og:url" content="https://well-made.github.io/4d-polytope-viewer/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Interactive 4D Polytope Viewer: Stereo Tesseract &amp; 5-Cell">
+<meta name="twitter:description" content="Rotate a tesseract (hypercube), a 5-cell or a plain cube in four dimensions. Stereo pairs and a wiggle show the depth.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "4D Polytope Viewer",
+  "description": "Interactive viewer for 4D polytopes (tesseract, 5-cell) and an ordinary cube: rotation in all six 4D planes, stereo pairs (parallel or cross-eyed viewing) and wiggle.",
+  "url": "https://well-made.github.io/4d-polytope-viewer/",
+  "applicationCategory": "EducationalApplication",
+  "operatingSystem": "Any (web browser)",
+  "browserRequirements": "Requires JavaScript and an HTML5 canvas",
+  "isAccessibleForFree": true,
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "sameAs": "https://github.com/well-made/4d-polytope-viewer"
+}
+</script>
 <style>
 /* Theme colours as CSS variables. Dark values apply automatically when the OS prefers dark;
    <html data-theme="light|dark"> can force a theme (the canvas code reads the same variables). */
@@ -64,6 +89,11 @@ body {
 .stage.drag { cursor: grabbing; }
 .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
+.intro { width: min(94vw, 680px); text-align: center; margin-bottom: 6px; }
+.intro h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; }
+.intro p, .about p { margin: 4px 0; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.about { width: min(94vw, 680px); text-align: center; margin-top: 18px; padding-top: 10px; border-top: 1px solid rgba(128,128,128,.35); }
+a { color: var(--text); text-underline-offset: 2px; }
 .hint { margin-top: 6px; font-size: 13px; color: var(--muted); text-align: center; padding: 0 12px; line-height: 1.5; }
 
 /* Control panel: two columns (one on narrow screens). .wide spans both columns, .grp is a group heading. */
@@ -89,6 +119,12 @@ button {
 </head>
 <body>
 <div class="wrap">
+  <header class="intro">
+    <h1>4D Polytope Viewer</h1>
+    <p>Interactive stereo viewer for 4D polytopes: the <b>tesseract</b> (hypercube) and the <b>5-cell</b> (simplex), plus an ordinary
+       <b>cube</b> to start with. Rotate them in all six 4D planes and see the depth as stereo pairs or with a wiggle.
+       <a href="https://github.com/well-made/4d-polytope-viewer">Source code and full documentation on GitHub</a>.</p>
+  </header>
   <div class="stage" id="stage"><canvas id="cv"></canvas></div>
 
   <div class="hint">
@@ -101,7 +137,7 @@ button {
   <div class="controls">
     <!-- Figure selector (SECTION 9 builds the rest of the panel for the chosen figure) -->
     <div class="seg wide" id="segShape" style="justify-self:center">
-      <button class="on" data-v="tesseract">Tesseract</button><button data-v="simplex">Simplex</button>
+      <button class="on" data-v="tesseract">Tesseract</button><button data-v="simplex">Simplex</button><button data-v="cube">Cube</button>
     </div>
     <button id="reset">Reset orientation</button>
 
@@ -153,6 +189,14 @@ button {
       <input type="range" id="ster" min="0" max="50" step="1" value="20">
     </label>
   </div>
+
+  <footer class="about">
+    <p><b>How to look at it:</b> relax your eyes so that the left and right image of a pair fuse into one 3D picture
+       (parallel viewing; switch to cross-eyed under &ldquo;Stereo pair&rdquo; if you prefer that), or just switch the wiggle on
+       and watch the motion parallax. The coloured edges show the position along the 4th dimension (blue far, red near).</p>
+    <p>Free and open source &middot; one self-contained HTML file &middot;
+       <a href="https://github.com/well-made/4d-polytope-viewer">github.com/well-made/4d-polytope-viewer</a></p>
+  </footer>
 </div>
 
 <script>
@@ -189,7 +233,8 @@ button {
   //   id     - string key
   //   V      - 4D vertices, each [x, y, z, w]; the figure is centred at the origin, radius roughly 100..200
   //   E      - edges, each a pair of vertex indices [i, j]
-  //   cells  - one entry per 3D cell; an entry is a list of that cell's faces; a face is a list of vertex
+  //   cells  - one entry per highlightable part (a 3D cell; for the flat cube one square face); an entry is
+  //            a list of faces; a face is a list of vertex
   //            indices in cyclic order (4 for squares, 3 for triangles, any length works)
   //   colors - highlight colour ("R,G,B" string) of each cell
   //   on     - highlight flag of each cell (state of the toggle buttons; kept per shape)
@@ -229,6 +274,28 @@ button {
     return { id: 'tesseract', V: V, E: E, cells: cells, colors: colors, on: on };
   }
 
+  // Ordinary 3D cube lying in the hyperplane w = 0 - a familiar object for getting used to the rotations.
+  // XY, XZ and YZ rotations behave like ordinary 3D rotations; any rotation involving W tilts the cube out of
+  // w = 0 into the fourth dimension, where it gets 4D perspective and a W colour gradient.
+  // A cube has no 3D cells of its own (it IS a single cell), so here the highlightable parts are its 6 square faces,
+  // stored like cells with one face each. Order: X-, X+, Y-, Y+, Z-, Z+ (index = 2 * axis + (plus ? 1 : 0)).
+  function makeCube() {
+    var V = [], E = [], cells = [], colors = [], on = [], i, b, a, c, d;
+    for (i = 0; i < 8; i++) V.push([(i & 1 ? 1 : -1) * 100, (i & 2 ? 1 : -1) * 100, (i & 4 ? 1 : -1) * 100, 0]);
+    for (i = 0; i < 8; i++) for (b = 1; b < 8; b <<= 1) if (!(i & b)) E.push([i, i | b]);
+    for (a = 0; a < 3; a++) {
+      c = (a + 1) % 3; d = (a + 2) % 3;
+      [0, 1].forEach(function (plus) {
+        var o = plus ? (1 << a) : 0;
+        cells.push([[o, o | (1 << c), o | (1 << c) | (1 << d), o | (1 << d)]]);   // one square face, 4 corners in cyclic order
+        colors.push(AXC[a]);
+        on.push(false);
+      });
+    }
+    on[5] = true;   // the Z+ face (the one facing the viewer) is highlighted by default
+    return { id: 'cube', V: V, E: E, cells: cells, colors: colors, on: on };
+  }
+
   // Simplex (5-cell): 5 vertices, 10 edges, 10 triangular faces, 5 tetrahedral cells; all edges are equal.
   // Vertices 1-4 form a regular tetrahedron in the hyperplane w = -100/sqrt(5); vertex 5 is the apex on +W.
   // Cell k (k = 1..5) consists of all vertices EXCEPT vertex k (so cell 5 is the "base" tetrahedron).
@@ -247,7 +314,7 @@ button {
   }
   // </shapes>
 
-  var SHAPES = { tesseract: makeTesseract(), simplex: makeSimplex() };
+  var SHAPES = { tesseract: makeTesseract(), simplex: makeSimplex(), cube: makeCube() };
 
   // ============================================================================================
   // SECTION 4. State
@@ -332,8 +399,15 @@ button {
       cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, W, H);
-    var color = getComputedStyle(document.documentElement).getPropertyValue('--text') || '#000';
+    var cs = getComputedStyle(document.documentElement);
+    var th = document.documentElement.getAttribute('data-theme');
+    var dark = th ? th === 'dark' : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    // The canvas is first filled with an OPAQUE background in the page colour. The highlighted cells are blended
+    // with 'multiply' (light theme) or 'screen' (dark theme); both are order-independent only against an opaque
+    // backdrop - each layer just multiplies the pixel by a fixed per-channel factor.
+    ctx.fillStyle = (cs.getPropertyValue('--bg') || (dark ? '#16181d' : '#f4f1ea')).trim();
+    ctx.fillRect(0, 0, W, H);
+    var color = cs.getPropertyValue('--text') || '#000';
     ctx.strokeStyle = color.trim(); ctx.lineWidth = 2; ctx.lineCap = 'round';
 
     // --- perspective distances ---
@@ -344,8 +418,6 @@ button {
     var stereo = +ster.value, imageGap = +dist.value;
 
     // --- edge colour by W (depth along the 4th dimension): blue = far from the 4D observer, red = near ---
-    var th = document.documentElement.getAttribute('data-theme');
-    var dark = th ? th === 'dark' : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
     var lightness = dark ? 62 : 45;
     function col(w) {
       var t = Math.max(0, Math.min(1, (w + 150) / 300));        // w = -150 -> 0 (blue), w = +150 -> 1 (red)
@@ -401,7 +473,11 @@ button {
         }
         var Q = P.map(pj);                              // screen position of every vertex in this image
 
-        // (1) highlighted cells: semi-transparent filled faces, drawn first so the edges stay on top
+        // (1) highlighted cells: semi-transparent filled faces, drawn first so the edges stay on top.
+        // Colours MIX where cells overlap, independent of the drawing order: with ordinary alpha blending the
+        // colour drawn last would always dominate. Light theme: 'multiply' (like overlapping inks / filters);
+        // dark theme: 'screen' (like overlapping lights). Red + blue gives purple, and so on.
+        ctx.globalCompositeOperation = dark ? 'screen' : 'multiply';
         shape.cells.forEach(function (faces, ci) {
           if (!shape.on[ci]) return;
           ctx.fillStyle = 'rgba(' + shape.colors[ci] + ',' + (+fa.value / 100) + ')';
@@ -413,6 +489,8 @@ button {
             ctx.fill();
           });
         });
+
+        ctx.globalCompositeOperation = 'source-over';
 
         // (2) edges. In gradient mode each edge fades from the colour of one end's W to the other's.
         E.forEach(function (e) {
@@ -600,10 +678,11 @@ button {
   }
   function buildCellUI() {
     var h = '', a, c;
-    if (shape.id === 'tesseract') {
-      // one row per axis with two toggles: the "-" cell and the "+" cell (both on = the whole opposite pair)
-      for (a = 0; a < 4; a++) {
-        h += '<div class="row"><span>' + dotHtml(AXC[a]) + 'Cell on axis ' + AXN[a] + ' \u00B7 ' + COLN[a] + '</span><div class="seg">' +
+    if (shape.id === 'tesseract' || shape.id === 'cube') {
+      // one row per axis with two toggles: the "-" cell/face and the "+" one (both on = the whole opposite pair)
+      var nAxes = shape.id === 'cube' ? 3 : 4, noun = shape.id === 'cube' ? 'Face' : 'Cell';
+      for (a = 0; a < nAxes; a++) {
+        h += '<div class="row"><span>' + dotHtml(AXC[a]) + noun + ' on axis ' + AXN[a] + ' \u00B7 ' + COLN[a] + '</span><div class="seg">' +
              '<button data-i="' + (2 * a) + '">\u2212</button><button data-i="' + (2 * a + 1) + '">+</button></div></div>';
       }
     } else {
