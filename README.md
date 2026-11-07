@@ -1,7 +1,5 @@
 # Stereo 4D polytopes
 
-**[Live demo](https://well-made.github.io/4d-polytope-viewer/)**
-
 An interactive, single-file viewer for 4D polytopes (**tesseract** and **5-cell**) shown as stereo pairs, so you can *see* their depth with the naked eye, rotate them in all six 4D rotation planes, and optionally add a "wiggle" as a second depth cue.
 
 No libraries, no build step, no network access: open `index.html` in a browser, or serve the folder with GitHub Pages.
@@ -10,7 +8,7 @@ No libraries, no build step, no network access: open `index.html` in a browser, 
 
 ## Quick start
 
-1. Open `index.html` (double-click, or enable **GitHub Pages**: *Settings → Pages → Deploy from branch → `main` / root*).
+1. Open [this page](https://well-made.github.io/4d-polytope-viewer/).
 2. Drag with the left mouse button to rotate. Drag with the **right** button to rotate "through the fourth dimension".
 3. Look at the two images of a pair so that they fuse into one 3D picture (see the next section). Or just switch the wiggle on and enjoy the motion parallax - no stereo skill needed.
 
