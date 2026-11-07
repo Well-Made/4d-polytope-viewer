@@ -1,6 +1,6 @@
 # Stereo 4D polytopes
 
-An interactive, single-file viewer for 4D polytopes (**tesseract** and **5-cell**) shown as stereo pairs, so you can *see* their depth with the naked eye, rotate them in all six 4D rotation planes, and optionally add a "wiggle" as a second depth cue.
+An interactive, single-file viewer for 4D polytopes (**tesseract** and **5-cell**, plus an ordinary **cube** to start with) shown as stereo pairs, so you can *see* their depth with the naked eye, rotate them in all six 4D rotation planes, and optionally add a "wiggle" as a second depth cue.
 
 No libraries, no build step, no network access: open `index.html` in a browser, or serve the folder with GitHub Pages.
 
@@ -53,10 +53,10 @@ Rotations are applied in the **fixed screen frame** (X right, Y up, Z toward you
 
 | Control | What it does |
 |---|---|
-| **Tesseract / Simplex** | Switch the figure. Orientation, zoom and sliders are kept; each figure remembers its own highlighted cells |
+| **Tesseract / Simplex / Cube** | Switch the figure. Orientation, zoom and sliders are kept; each figure remembers its own highlighted cells. The cube is a plain 3D cube - a familiar starting point for getting used to the rotations |
 | **Reset orientation** | Return to the initial orientation (zoom and sliders stay) |
 | **Edges: W gradient / Plain** | Colour edges by 4D depth (see below), or draw them in one colour |
-| **Cell toggles** | Highlight cells with a semi-transparent fill. Each button is an independent on/off switch. Tesseract: one row per axis with a **−** and a **+** button (both on = the whole pair of opposite cubes). 5-cell: five buttons, one per cell |
+| **Cell toggles** | Highlight cells with a semi-transparent fill. Each button is an independent on/off switch. Tesseract: one row per axis with a **−** and a **+** button (both on = the whole pair of opposite cubes). 5-cell: five buttons, one per cell. Cube: like the tesseract, but the three rows highlight its square faces |
 | **Fill opacity** | Opacity of the highlighted cells |
 | **Wiggle** (checkbox) | Switch the camera oscillation on/off |
 | **Wiggle direction** | Oscillate horizontally or vertically |
@@ -78,13 +78,16 @@ Rotations are applied in the **fixed screen frame** (X right, Y up, Z toward you
   * In variant 1 the **W** axis moves with the wiggle while **Z** only shows the stereo shift; in variant 2 it is the other way round (**Z** wiggles, **W** shows the stereo shift). X, Y and the origin never move. While the wiggle is off, the axis that exists to show it (W in variant 1, Z in variant 2) is not drawn.
 * **Highlighted cells**: filled with a semi-transparent colour.
   * Tesseract: a cell takes the colour of its axis - X red, Y green, Z blue, W gray; "−" and "+" mean the cell at the negative or positive end of that axis. By default the W− cell (the inner cube at the start orientation) is on.
+  * Cube: its six faces are highlighted instead (it has no cells of its own); a face takes the colour of its axis, as for the tesseract.
   * 5-cell: cells are numbered 1-5 (colours red, green, blue, gray, orange). **Cell k is made of all vertices except vertex k.** Vertex 5 is the apex, pointing along +W at the start orientation; cell 5 is therefore the opposite "base" tetrahedron.
+* **Overlapping highlights mix.** Where highlighted cells overlap, their colours blend (like overlapping coloured filters on a light theme, like overlapping lights on a dark theme), and the result does not depend on which cell is drawn first - so no colour can hide another one.
 * **Captions** above the pairs: which variant it is, and (while the wiggle is on) which space wiggles.
 
 ## The figures
 
 | | Vertices | Edges | Faces | Cells | Note |
 |---|---|---|---|---|---|
+| Cube (3D) | 8 | 12 | 6 squares | 1 cube | an ordinary cube lying in the hyperplane w = 0: XY, XZ and YZ rotations are plain 3D rotations, anything involving W tilts it into 4D |
 | Tesseract (8-cell) | 16 | 32 | 24 squares | 8 cubes | vertices at (±100, ±100, ±100, ±100) |
 | Simplex (5-cell) | 5 | 10 | 10 triangles | 5 tetrahedra | 4 vertices form a regular tetrahedron, the 5th is the apex on +W; all edges are equal |
 
@@ -94,7 +97,7 @@ Rotations are applied in the **fixed screen frame** (X right, Y up, Z toward you
 2. **Projection.** A 4D point goes through two perspective steps: **4D → 3D** (a camera on the W axis; points with larger W look larger and move outward) and then **3D → 2D** (a camera on the Z axis, the usual perspective). The two *field of view* sliders set the strength of each step.
 3. **Stereo.** Each image of a pair is rendered by a camera shifted sideways by ± *Stereo strength*. Shifting the camera moves a point sideways by an amount that depends on its depth, which creates the left/right difference your brain turns into depth. In *variant 1* the shift is applied in the 3D → 2D step, in *variant 2* in the 4D → 3D step.
 4. **Wiggle.** The same camera offset, but equal for both eyes and oscillating in time. Depth is then perceived from motion parallax. It is applied to the step that does *not* carry the stereo shift.
-5. **Cell highlight.** A shape stores its cells as lists of faces; highlighted faces are filled before the edges are drawn.
+5. **Cell highlight.** A shape stores its cells as lists of faces; highlighted faces are filled before the edges are drawn. Overlapping fills are blended with an order-independent mode (`multiply` on a light theme, `screen` on a dark one), which is why the canvas is first filled with an opaque background colour.
 6. **Global axes.** A small frame in the same 4D space, not affected by the rotation, positioned in the plane `z = 0, w = 0` so that each axis reacts only to the camera shift that belongs to it.
 
 ## Code map and adding a figure
