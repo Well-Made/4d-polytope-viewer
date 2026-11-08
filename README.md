@@ -135,3 +135,7 @@ To add another regular polytope (16-cell, 24-cell, …), write one `makeXxx()` f
 
 * No 4D rotation on touch screens (one finger acts like the left mouse button).
 * Rendering uses the 2D canvas and draws each edge with its own gradient, which is comfortable for small figures but not meant for polytopes with hundreds of edges.
+
+## Feedback
+
+Questions, ideas and opinions are welcome in [Discussions](https://github.com/well-made/4d-polytope-viewer/discussions). Bug reports go to [Issues](https://github.com/well-made/4d-polytope-viewer/issues).
