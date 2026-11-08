@@ -4,6 +4,8 @@ An interactive, single-file viewer for 4D polytopes (**tesseract** and **5-cell*
 
 No libraries, no build step, no network access: open `index.html` in a browser, or serve the folder with GitHub Pages.
 
+![The tesseract as two stereo pairs with three highlighted cells](images/hero.png)
+
 > Assumed background: you know roughly what a tesseract is and how stereo pairs work. Everything else is explained below.
 
 ## Quick start
@@ -15,6 +17,8 @@ No libraries, no build step, no network access: open `index.html` in a browser, 
 ## How to view the stereo pair
 
 The page shows **two stereo pairs** (top and bottom), each made of a left and a right image.
+
+![One stereo pair: left and right image](images/stereo-pair.png)
 
 | Method | What to do | Setting |
 |---|---|---|
@@ -33,6 +37,10 @@ Both pairs show the same figure, but the two "depth cues" - the left/right diffe
 | **Variant 2** (bottom) | in the 4D step: depth along **W** appears as stereo depth | in the 3D view: ordinary 3D depth by motion |
 
 The captions above each pair say which is which (the wiggle part is hidden while the wiggle is off).
+
+The wiggle in action (one period):
+
+![Animated wiggle of both pairs](images/wiggle.gif)
 
 ## Controls
 
@@ -71,6 +79,8 @@ Rotations are applied in the **fixed screen frame** (X right, Y up, Z toward you
 
 ## Visual cues
 
+![The visual cues explained: pair, W gradient, highlighted cell, global axes, caption](images/cues.png)
+
 * **Edge colour** (*W gradient* mode): the colour shows how far a point is along the 4th dimension *after the current rotation*. **Blue** = far from the 4D observer (small W), **red** = near (large W). An edge fades from the colour of one end to the colour of the other. This is the main clue for telling "inner" parts of the figure from "outer" ones, e.g. the small inner cube of a tesseract versus its big outer cube.
 * **Coloured axes in the lower-left corner of each image**: the *fixed* global axes of the screen frame. They do **not** rotate with the figure - they show the directions you are rotating relative to.
   * **+X** (red) right, **+Y** (green) up, **+Z** (blue) toward you, **+W** (gray) toward the 4D observer.
@@ -84,6 +94,8 @@ Rotations are applied in the **fixed screen frame** (X right, Y up, Z toward you
 * **Captions** above the pairs: which variant it is, and (while the wiggle is on) which space wiggles.
 
 ## The figures
+
+![Cube, cube tilted into 4D, tesseract and simplex](images/figures.png)
 
 | | Vertices | Edges | Faces | Cells | Note |
 |---|---|---|---|---|---|
@@ -114,6 +126,8 @@ Everything is in `index.html` (the code is commented for both people and AI assi
 | 8 | Wiggle loop and button groups |
 | 9 | Cell highlight panel |
 | 10 | Figure switch, reset, start-up |
+
+The `images/` folder holds the pictures used in this README and the social preview image (`og-image.png`, referenced from the page's `<head>`).
 
 To add another regular polytope (16-cell, 24-cell, …), write one `makeXxx()` function in SECTION 3 that returns `{ id, V, E, cells, colors, on }` (see the comment there), register it in `SHAPES`, and add a button with `data-v="<id>"` inside `#segShape`. If it needs its own cell-toggle panel, extend `buildCellUI()` in SECTION 9. The renderer does not need to change. For polytopes with hundreds of edges you may want to cache the per-edge gradients, since a frame draws every edge four times.
 
