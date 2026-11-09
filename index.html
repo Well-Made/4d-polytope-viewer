@@ -299,7 +299,7 @@ button {
         on.push(false);
       });
     }
-    on[5] = true;   // the Z+ face (the one facing the viewer) is highlighted by default
+    on[4] = true;   // the far Z- face is highlighted by default (the near Z+ face would cover the whole cube)
     return { id: 'cube', V: V, E: E, cells: cells, colors: colors, on: on };
   }
 
