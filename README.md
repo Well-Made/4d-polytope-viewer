@@ -1,6 +1,6 @@
 # Stereo 4D polytopes
 
-An interactive, single-file viewer for 4D polytopes (**tesseract** and **5-cell**, plus an ordinary **cube** to start with) shown as stereo pairs, so you can *see* their depth with the naked eye, rotate them in all six 4D rotation planes, and optionally add a "wiggle" as a second depth cue.
+An interactive, single-file viewer for 4D polytopes (**tesseract**, **5-cell**, **16-cell** and **24-cell**, plus an ordinary **cube** to start with) shown as stereo pairs, so you can *see* their depth with the naked eye, rotate them in all six 4D rotation planes, and optionally add a "wiggle" as a second depth cue.
 
 No libraries, no build step, no network access: open `index.html` in a browser, or serve the folder with GitHub Pages.
 
@@ -61,10 +61,10 @@ Rotations are applied in the **fixed screen frame** (X right, Y up, Z toward you
 
 | Control | What it does |
 |---|---|
-| **Tesseract / Simplex / Cube** | Switch the figure. Orientation, zoom and sliders are kept; each figure remembers its own highlighted cells. The cube is a plain 3D cube - a familiar starting point for getting used to the rotations |
+| **Tesseract / Simplex / Cube / 16-cell / 24-cell** | Switch the figure. Orientation, zoom and sliders are kept; each figure remembers its own highlighted cells. The cube is a plain 3D cube - a familiar starting point for getting used to the rotations |
 | **Reset orientation** | Return to the initial orientation (zoom and sliders stay) |
 | **Edges: W gradient / Plain** | Colour edges by 4D depth (see below), or draw them in one colour |
-| **Cell toggles** | Highlight cells with a semi-transparent fill. Each button is an independent on/off switch. Tesseract: one row per axis with a **−** and a **+** button (both on = the whole pair of opposite cubes). 5-cell: five buttons, one per cell. Cube: like the tesseract, but the three rows highlight its square faces |
+| **Cell toggles** | Highlight cells with a semi-transparent fill. Each button is an independent on/off switch. Tesseract: one row per axis with a **−** and a **+** button (both on = the whole pair of opposite cubes). 5-cell: five buttons, one per cell. Cube: like the tesseract, but the three rows highlight its square faces. 16-cell: like the tesseract (a row per axis with **−** and **+**), but each button lights the 8 cells that meet at that vertex. 24-cell: four buttons, one per ring of six octahedra |
 | **Fill opacity** | Opacity of the highlighted cells |
 | **Wiggle** (checkbox) | Switch the camera oscillation on/off |
 | **Wiggle direction** | Oscillate horizontally or vertically |
@@ -89,6 +89,8 @@ Rotations are applied in the **fixed screen frame** (X right, Y up, Z toward you
 * **Highlighted cells**: filled with a semi-transparent colour.
   * Tesseract: a cell takes the colour of its axis - X red, Y green, Z blue, W gray; "−" and "+" mean the cell at the negative or positive end of that axis. By default the W− cell (the inner cube at the start orientation) is on.
   * Cube: its six faces are highlighted instead (it has no cells of its own); a face takes the colour of its axis, as for the tesseract.
+  * 16-cell: a button lights the *star* of one vertex - all 8 tetrahedral cells that meet there - in the colour of that vertex's axis. A cell has four vertices (one on each axis), so where stars overlap their colours mix.
+  * 24-cell: its 24 octahedral cells fall into 4 rings of 6; each ring is a closed chain of cells joined face to face. The four buttons (red, green, blue, gray) light one ring each.
   * 5-cell: cells are numbered 1-5 (colours red, green, blue, gray, orange). **Cell k is made of all vertices except vertex k.** Vertex 5 is the apex, pointing along +W at the start orientation; cell 5 is therefore the opposite "base" tetrahedron.
 * **Overlapping highlights mix.** Where highlighted cells overlap, their colours blend (like overlapping coloured filters on a light theme, like overlapping lights on a dark theme), and the result does not depend on which cell is drawn first - so no colour can hide another one.
 * **Captions** above the pairs: which variant it is, and (while the wiggle is on) which space wiggles.
@@ -101,7 +103,9 @@ Rotations are applied in the **fixed screen frame** (X right, Y up, Z toward you
 |---|---|---|---|---|---|
 | Cube (3D) | 8 | 12 | 6 squares | 1 cube | an ordinary cube lying in the hyperplane w = 0: XY, XZ and YZ rotations are plain 3D rotations, anything involving W tilts it into 4D |
 | Tesseract (8-cell) | 16 | 32 | 24 squares | 8 cubes | vertices at (±100, ±100, ±100, ±100) |
-| Simplex (5-cell) | 5 | 10 | 10 triangles | 5 tetrahedra | 4 vertices form a regular tetrahedron, the 5th is the apex on +W; all edges are equal |
+| Simplex (5-cell) | 5 | 10 | 10 triangles | 5 tetrahedra | 4 vertices form a regular tetrahedron, the 5th is the apex on +W; all edges are equal; 3 cells meet at each edge |
+| 16-cell (cross-polytope) | 8 | 24 | 32 triangles | 16 tetrahedra | vertices (±180, 0, 0, 0) and permutations; **4** cells meet at each edge |
+| 24-cell | 24 | 96 | 96 triangles | 24 octahedra | vertices are the permutations of (±1, ±1, 0, 0), scaled; every edge equals the circumradius; 3 cells meet at each edge |
 
 ## How it works (short version)
 
@@ -109,7 +113,7 @@ Rotations are applied in the **fixed screen frame** (X right, Y up, Z toward you
 2. **Projection.** A 4D point goes through two perspective steps: **4D → 3D** (a camera on the W axis; points with larger W look larger and move outward) and then **3D → 2D** (a camera on the Z axis, the usual perspective). The two *field of view* sliders set the strength of each step.
 3. **Stereo.** Each image of a pair is rendered by a camera shifted sideways by ± *Stereo strength*. Shifting the camera moves a point sideways by an amount that depends on its depth, which creates the left/right difference your brain turns into depth. In *variant 1* the shift is applied in the 3D → 2D step, in *variant 2* in the 4D → 3D step.
 4. **Wiggle.** The same camera offset, but equal for both eyes and oscillating in time. Depth is then perceived from motion parallax. It is applied to the step that does *not* carry the stereo shift.
-5. **Cell highlight.** A shape stores its cells as lists of faces; highlighted faces are filled before the edges are drawn. Overlapping fills are blended with an order-independent mode (`multiply` on a light theme, `screen` on a dark one), which is why the canvas is first filled with an opaque background colour.
+5. **Cell highlight.** A shape stores its highlightable parts (a cell, a face, or several cells together) as lists of faces; highlighted faces are filled before the edges are drawn. Overlapping fills are blended with an order-independent mode (`multiply` on a light theme, `screen` on a dark one), which is why the canvas is first filled with an opaque background colour.
 6. **Global axes.** A small frame in the same 4D space, not affected by the rotation, positioned in the plane `z = 0, w = 0` so that each axis reacts only to the camera shift that belongs to it.
 
 ## Code map and adding a figure
@@ -119,7 +123,7 @@ Everything is in `index.html` (the code is commented for both people and AI assi
 | Section | Content |
 |---|---|
 | 1-2 | DOM references, colours |
-| 3 | **Shapes** - plain data objects (vertices, edges, cells as lists of faces) |
+| 3 | **Shapes** - plain data objects (vertices, edges, highlight groups as lists of faces) |
 | 4-5 | State, 4D rotation maths |
 | 6 | Rendering: projection, cell fill, edges, global axes, captions |
 | 7 | Mouse and touch input |
@@ -129,7 +133,7 @@ Everything is in `index.html` (the code is commented for both people and AI assi
 
 The `images/` folder holds the pictures used in this README and the social preview image (`og-image.png`, referenced from the page's `<head>`).
 
-To add another regular polytope (16-cell, 24-cell, …), write one `makeXxx()` function in SECTION 3 that returns `{ id, V, E, cells, colors, on }` (see the comment there), register it in `SHAPES`, and add a button with `data-v="<id>"` inside `#segShape`. If it needs its own cell-toggle panel, extend `buildCellUI()` in SECTION 9. The renderer does not need to change. For polytopes with hundreds of edges you may want to cache the per-edge gradients, since a frame draws every edge four times.
+To add another polytope (for example a truncated tesseract), write one `makeXxx()` function in SECTION 3 that returns `{ id, V, E, groups, on, panel }` (see the comment there; `panel` describes the highlight buttons), register it in `SHAPES`, and add a button with `data-v="<id>"` inside `#segShape`. The renderer and the panel builder do not need to change. For polytopes with hundreds of edges you may want to cache the per-edge gradients, since a frame draws every edge four times.
 
 ## Limitations
 
