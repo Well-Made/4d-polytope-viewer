@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://well-made.github.io/4d-polytope-viewer/sitemap.xml

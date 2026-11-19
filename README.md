@@ -1,5 +1,7 @@
 # Stereo 4D polytopes
 
+**[▶ Live demo: open the 4D Polytope Viewer](https://well-made.github.io/4d-polytope-viewer/)** (runs in your browser, nothing to install)
+
 An interactive, single-file viewer for 4D polytopes (**tesseract**, **5-cell**, **16-cell** and **24-cell**, plus an ordinary **cube** to start with) shown as stereo pairs, so you can *see* their depth with the naked eye, rotate them in all six 4D rotation planes (by hand or automatically), and add a "wiggle" plus edge colour and thickness as further depth cues, so that the two simultaneous depths, **Z** and **W**, can be told apart.
 
 No libraries, no build step, no network access: open `index.html` in a browser, or serve the folder with GitHub Pages.

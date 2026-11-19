@@ -66,6 +66,16 @@
   "browserRequirements": "Requires JavaScript and an HTML5 canvas",
   "isAccessibleForFree": true,
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+  "image": "https://well-made.github.io/4d-polytope-viewer/images/og-image.png",
+  "inLanguage": "en",
+  "keywords": "4D polytope viewer, tesseract, hypercube, 5-cell, 16-cell, 24-cell, 4D rotation, stereo pair, wiggle stereoscopy, fourth dimension",
+  "featureList": [
+    "Rotation in all six 4D planes (XY, XZ, YZ, XW, YW, ZW) and double rotation",
+    "Stereo pairs (parallel or cross-eyed viewing)",
+    "Wiggle stereoscopy (motion parallax)",
+    "Edge colour and thickness as two separate depth cues",
+    "Cell highlighting and hidden-edge removal"
+  ],
   "sameAs": "https://github.com/well-made/4d-polytope-viewer"
 }
 </script>
@@ -142,6 +152,21 @@ button {
 .seg button { margin-top: 0; padding: 6px 14px; font-size: 13px; }
 .seg button.on { background: var(--text); color: var(--bg); border-color: var(--text); }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: baseline; }
+
+/* Long-form guide below the viewer: selectable text, readable width (the tool itself stays unselectable). */
+.guide { width: min(94vw, 760px); margin-top: 30px; text-align: left; user-select: text; -webkit-user-select: text; color: var(--text); }
+.guide h2 { font-size: 17px; font-weight: 600; margin: 28px 0 6px; }
+.guide h3 { font-size: 14px; font-weight: 600; margin: 16px 0 2px; }
+.guide p, .guide li { font-size: 14px; line-height: 1.6; color: var(--muted); }
+.guide p { margin: 6px 0; }
+.guide ul, .guide ol { margin: 6px 0; padding-left: 22px; }
+.guide li { margin: 4px 0; }
+.guide b, .guide i { color: var(--text); }
+.guide img { max-width: 100%; height: auto; display: block; margin: 12px auto; border-radius: 8px; }
+.guide table { border-collapse: collapse; width: 100%; font-size: 13px; display: block; overflow-x: auto; margin: 10px 0; }
+.guide th, .guide td { border-bottom: 1px solid rgba(128,128,128,.35); padding: 6px 10px; text-align: left; vertical-align: top; white-space: nowrap; color: var(--muted); }
+.guide th { color: var(--text); font-weight: 600; }
+.guide td:first-child { color: var(--text); }
 </style>
 </head>
 <body>
@@ -260,6 +285,70 @@ button {
     </div>
     </div>
   </div>
+
+  <section class="guide" id="guide">
+    <h2>What is a 4D polytope viewer?</h2>
+    <p>A 4D polytope is the four-dimensional relative of a polygon or a polyhedron. This page draws the
+       <b>tesseract</b> (hypercube, 8-cell), the <b>5-cell</b> (4D simplex), the <b>16-cell</b> and the <b>24-cell</b> as wireframes,
+       lets you rotate them in all six rotation planes of four-dimensional space, and shows their depth as
+       <b>stereo pairs</b> (3D with the naked eye) or as a <b>wiggle</b> (motion parallax). An ordinary cube is included as a familiar starting point.</p>
+    <img src="images/hero.png" width="850" height="932" loading="lazy"
+         alt="A tesseract shown as two stereo pairs with three highlighted cells">
+
+    <h2>How to see the fourth dimension: stereo pairs and wiggle</h2>
+    <p>The page shows two stereo pairs, each made of a left and a right image. Use whichever method suits you:</p>
+    <ul>
+      <li><b>Parallel viewing</b> (default): relax your eyes as if looking <i>through</i> the screen at something far away, until the two images drift together into a third, central one. The left eye must end up seeing the left image.</li>
+      <li><b>Cross-eyed viewing</b>: cross your eyes slightly until the images overlap (the left eye then sees the right image). Choose <i>Cross-eyed</i> under the <i>Stereo pair</i> tab.</li>
+      <li><b>Wiggle</b>: no stereo skill needed. Switch on <i>Wiggle</i> and watch the camera swing back and forth; near parts move more than far ones.</li>
+    </ul>
+    <p>If fusing the images is hard, reduce <i>Image spacing</i> (the centres of the two images should be no farther apart than your eyes) or lower <i>Stereo strength</i>.</p>
+    <img src="images/stereo-pair.png" width="850" height="461" loading="lazy"
+         alt="One stereo pair of a tesseract: left and right image">
+
+    <h2>Rotating in 4D: the six rotation planes</h2>
+    <p>In 3D there are three independent rotation planes (XY, XZ, YZ). In 4D there are six: XY, XZ, YZ, <b>XW</b>, <b>YW</b> and <b>ZW</b>. The last three turn the figure &ldquo;through the fourth dimension&rdquo;. Drag with the left mouse button for XZ and YZ, with the right button for XW and YW, and use right button + wheel for ZW.</p>
+    <p>The planes come in orthogonal pairs (XY with ZW, XZ with YW, YZ with XW). Turning both planes of a pair at the same time gives a genuine <b>double rotation</b>, something with no 3D counterpart: no point of the figure stays fixed. Switch it on in the <i>Auto-rotation</i> tab.</p>
+
+    <h2>Two depths at once: Z and W</h2>
+    <p>A 4D figure has two depth directions: <b>Z</b> (toward you in the 3D picture) and <b>W</b> (toward the 4D observer). Stereo and wiggle each show depth, and the brain tends to merge the two. To keep them apart, the viewer gives each its own cue: edge <b>colour</b> (blue far, red near) shows one of them, edge <b>thickness</b> (thin far, thick near) shows the other. The <i>Cue mapping</i> switch decides which is which. A point that is far in Z but near in W comes out blue yet thick: two depths that disagree, now visible as two separate things.</p>
+    <img src="images/cues.png" width="850" height="749" loading="lazy"
+         alt="The visual cues explained: stereo pair, edge colour and thickness, highlighted cell, global axes">
+    <p>You can also highlight individual cells (the 3D &ldquo;faces&rdquo; of a 4D figure) with semi-transparent fills, and hide the edges that a 4D observer could not see, the same way a 3D observer cannot see the back faces of a solid.</p>
+
+    <h2>The figures</h2>
+    <img src="images/figures.png" width="1355" height="550" loading="lazy"
+         alt="Cube, cube tilted into 4D, tesseract and 5-cell simplex">
+    <table>
+      <thead><tr><th>Figure</th><th>Vertices</th><th>Edges</th><th>Faces</th><th>Cells</th></tr></thead>
+      <tbody>
+        <tr><td>Cube (3D)</td><td>8</td><td>12</td><td>6 squares</td><td>1 cube</td></tr>
+        <tr><td>Tesseract (8-cell, hypercube)</td><td>16</td><td>32</td><td>24 squares</td><td>8 cubes</td></tr>
+        <tr><td>5-cell (4D simplex)</td><td>5</td><td>10</td><td>10 triangles</td><td>5 tetrahedra</td></tr>
+        <tr><td>16-cell (cross-polytope)</td><td>8</td><td>24</td><td>32 triangles</td><td>16 tetrahedra</td></tr>
+        <tr><td>24-cell</td><td>24</td><td>96</td><td>96 triangles</td><td>24 octahedra</td></tr>
+      </tbody>
+    </table>
+
+    <h2>How it works</h2>
+    <ol>
+      <li><b>Orientation.</b> The figure&rsquo;s orientation is a 4&times;4 rotation matrix. Each drag multiplies it by a small rotation in one coordinate plane, and the matrix is re-orthonormalised every time so rounding errors never build up.</li>
+      <li><b>Double projection.</b> Every 4D point goes through two perspective steps: 4D &rarr; 3D (a camera on the W axis) and 3D &rarr; 2D (a camera on the Z axis). The two field-of-view sliders set the strength of each step.</li>
+      <li><b>Stereo.</b> Each image of a pair is drawn by a camera shifted sideways. In the top pair the shift is in the 3D step, in the bottom pair it is in the 4D step, so the bottom pair shows depth along W as ordinary stereo depth.</li>
+      <li><b>Wiggle.</b> The same camera offset, equal for both eyes and oscillating in time, applied to the step that carries no stereo shift.</li>
+      <li><b>Hidden edges.</b> The cells of a convex polytope are found automatically from its vertices, and a cell counts as visible when it faces the 4D camera.</li>
+    </ol>
+    <p>No libraries, no build step, no network access: the whole viewer is one self-contained HTML file. The full documentation and the code map are in the
+       <a href="https://github.com/well-made/4d-polytope-viewer#readme">README on GitHub</a>.</p>
+
+    <h2>Frequently asked questions</h2>
+    <h3>What does a tesseract look like in 3D?</h3>
+    <p>A shadow of a tesseract, like the shadow of a cube on a wall, depends on the direction of the light. Projected cell-first it looks like a small cube inside a bigger cube, joined by six stretched cubes. Rotate it through XW, YW or ZW and the inner cube turns inside out.</p>
+    <h3>Why do I need both colour and thickness?</h3>
+    <p>Because a 4D figure on a 2D screen has two hidden depths. One cue for each depth lets you tell them apart instead of seeing a single blurred depth.</p>
+    <h3>Does it work on a phone?</h3>
+    <p>Yes: one finger rotates in 3D and two fingers pinch to zoom. Rotation through the fourth dimension needs a right mouse button, but the auto-rotation tab can turn any 4D plane on a touch screen.</p>
+  </section>
 
   <footer class="about">
     <p><b>How to look at it:</b> relax your eyes so that the left and right image of a pair fuse into one 3D picture
